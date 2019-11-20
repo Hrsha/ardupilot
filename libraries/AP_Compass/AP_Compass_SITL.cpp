@@ -11,16 +11,21 @@ AP_Compass_SITL::AP_Compass_SITL()
     if (_sitl != nullptr) {
         _compass._setup_earth_field();
         for (uint8_t i=0; i<SITL_NUM_COMPASSES; i++) {
-            // default offsets to correct value
-            if (_compass.get_offsets(i).is_zero()) {
-                _compass.set_offsets(i, _sitl->mag_ofs);
+            uint32_t dev_id = AP_HAL::Device::make_bus_id(AP_HAL::Device::BUS_TYPE_SITL, i, 0, DEVTYPE_SITL);
+            if ((_compass_instance[i] = register_compass(dev_id)) >= COMPASS_MAX_INSTANCES) {
+                continue;
             }
-            
-            _compass_instance[i] = register_compass();
-            set_dev_id(_compass_instance[i], AP_HAL::Device::make_bus_id(AP_HAL::Device::BUS_TYPE_SITL, i, 0, DEVTYPE_SITL));
+            set_dev_id(_compass_instance[i], dev_id);
 
             // save so the compass always comes up configured in SITL
             save_dev_id(_compass_instance[i]);
+        }
+
+        // Scroll through the registered compasses, and set the offsets
+        for (uint8_t i=0; i<SITL_NUM_COMPASSES; i++) {
+            if (_compass.get_offsets(i).is_zero()) {
+                _compass.set_offsets(i, _sitl->mag_ofs);
+            }
         }
         
         // make first compass external

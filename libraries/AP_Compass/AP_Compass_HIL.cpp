@@ -50,7 +50,10 @@ AP_Compass_HIL::init(void)
 {
     // register two compass instances
     for (uint8_t i=0; i<HIL_NUM_COMPASSES; i++) {
-        _compass_instance[i] = register_compass();
+        uint32_t dev_id = AP_HAL::Device::make_bus_id(AP_HAL::Device::BUS_TYPE_SITL, i, 0, DEVTYPE_SITL);
+        if ((_compass_instance[i] = register_compass(dev_id)) >= COMPASS_MAX_INSTANCES) {
+            return false;
+        }
     }
     return true;
 }

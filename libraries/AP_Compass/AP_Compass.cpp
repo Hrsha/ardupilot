@@ -27,6 +27,7 @@
 #include "AP_Compass_RM3100.h"
 #include "AP_Compass.h"
 #include "Compass_learn.h"
+#include <stdio.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -99,7 +100,7 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @Description: Enable or disable the use of the compass (instead of the GPS) for determining heading
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
-    AP_GROUPINFO("USE",    4, Compass, _state[0].use_for_yaw, 1), // true if used for DCM yaw
+    AP_GROUPINFO("USE",    4, Compass, _use_for_yaw[0], 1), // true if used for DCM yaw
 
     // @Param: AUTODEC
     // @DisplayName: Auto Declination
@@ -266,27 +267,31 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DEV_ID",  15, Compass, _state[0].dev_id, 0),
 
+#if HAL_COMPASS_MAX_SENSORS > 1
     // @Param: DEV_ID2
     // @DisplayName: Compass2 device id
     // @Description: Second compass's device id.  Automatically detected, do not set manually
     // @ReadOnly: True
     // @User: Advanced
     AP_GROUPINFO("DEV_ID2", 16, Compass, _state[1].dev_id, 0),
+#endif // HAL_COMPASS_MAX_SENSORS
 
+#if HAL_COMPASS_MAX_SENSORS > 2
     // @Param: DEV_ID3
     // @DisplayName: Compass3 device id
     // @Description: Third compass's device id.  Automatically detected, do not set manually
     // @ReadOnly: True
     // @User: Advanced
     AP_GROUPINFO("DEV_ID3", 17, Compass, _state[2].dev_id, 0),
+#endif // HAL_COMPASS_MAX_SENSORS
 
 #if HAL_COMPASS_MAX_SENSORS > 1
     // @Param: USE2
     // @DisplayName: Compass2 used for yaw
-    // @Description: Enable or disable the second compass for determining heading.
+    // @Description: Enable or disable the secondary compass for determining heading.
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
-    AP_GROUPINFO("USE2",    18, Compass, _state[1].use_for_yaw, 1),
+    AP_GROUPINFO("USE2",    18, Compass, _use_for_yaw[1], 1),
 
     // @Param: ORIENT2
     // @DisplayName: Compass2 orientation
@@ -306,10 +311,10 @@ const AP_Param::GroupInfo Compass::var_info[] = {
 #if HAL_COMPASS_MAX_SENSORS > 2
     // @Param: USE3
     // @DisplayName: Compass3 used for yaw
-    // @Description: Enable or disable the third compass for determining heading.
+    // @Description: Enable or disable the tertiary compass for determining heading.
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
-    AP_GROUPINFO("USE3",    21, Compass, _state[2].use_for_yaw, 1),
+    AP_GROUPINFO("USE3",    21, Compass, _use_for_yaw[2], 1),
 
     // @Param: ORIENT3
     // @DisplayName: Compass3 orientation
@@ -470,26 +475,26 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @Values: 0:Disabled,1:CheckOnly,2:CheckAndFix
     AP_GROUPINFO("AUTO_ROT", 35, Compass, _rotate_auto, HAL_COMPASS_AUTO_ROT_DEFAULT),
 
-    // @Param: PRI_DEVID
-    // @DisplayName: Primary Compass device id
-    // @Description: Primary Compass device id, set automatically if 0. Reboot required after change.
+    // @Param: PRIO1_ID
+    // @DisplayName: Compass device id with 1st order priority
+    // @Description: Compass device id with 1st order priority, set automatically if 0. Reboot required after change.
     // @User: Advanced
-    AP_GROUPINFO("PRI_DEV",  36, Compass, _priority_did_stored_list[0], 0),
+    AP_GROUPINFO("PRIO1_ID",  36, Compass, _priority_did_stored_list[0], 0),
 
 #if HAL_COMPASS_MAX_SENSORS > 1
-    // @Param: SEC_DID
-    // @DisplayName: Secondary Compass device id
-    // @Description: Secondary Compass device id, set automatically if 0. Reboot required after change.
+    // @Param: PRIO2_ID
+    // @DisplayName: Compass device id with 2nd order priority
+    // @Description: Compass device id with 2nd order priority, set automatically if 0. Reboot required after change.
     // @User: Advanced
-    AP_GROUPINFO("SEC_DEV", 37, Compass, _priority_did_stored_list[1], 0),
+    AP_GROUPINFO("PRIO2_ID", 37, Compass, _priority_did_stored_list[1], 0),
 #endif // HAL_COMPASS_MAX_SENSORS
 
 #if HAL_COMPASS_MAX_SENSORS > 2
-    // @Param: TER_DID
-    // @DisplayName: Tertiary Compass device id
-    // @Description: Tertiary Compass device id, set automatically if 0. Reboot required after change.
+    // @Param: PRIO3_ID
+    // @DisplayName: Compass device id with 3rd order priority
+    // @Description: Compass device id with 3rd order priority, set automatically if 0. Reboot required after change.
     // @User: Advanced
-    AP_GROUPINFO("TER_DEV", 38, Compass, _priority_did_stored_list[2], 0),
+    AP_GROUPINFO("PRIO3_ID", 38, Compass, _priority_did_stored_list[2], 0),
 #endif // HAL_COMPASS_MAX_SENSORS
 
     // @Param: ENABLE
@@ -531,43 +536,50 @@ const AP_Param::GroupInfo Compass::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("OPTIONS", 43, Compass, _options, 0),
 
+#if COMPASS_MAX_UNREG_DEV > 0
     // @Param: DEV_ID4
     // @DisplayName: Compass4 device id
     // @Description: Extra 4th compass's device id.  Automatically detected, do not set manually
     // @ReadOnly: True
     // @User: Advanced
     AP_GROUPINFO("DEV_ID4", 44, Compass, extra_dev_id[0], 0),
+#endif // COMPASS_MAX_UNREG_DEV
 
-
+#if COMPASS_MAX_UNREG_DEV > 1
     // @Param: DEV_ID5
     // @DisplayName: Compass5 device id
     // @Description: Extra 5th compass's device id.  Automatically detected, do not set manually
     // @ReadOnly: True
     // @User: Advanced
     AP_GROUPINFO("DEV_ID5", 45, Compass, extra_dev_id[1], 0),
+#endif // COMPASS_MAX_UNREG_DEV
 
-
+#if COMPASS_MAX_UNREG_DEV > 2
     // @Param: DEV_ID6
     // @DisplayName: Compass6 device id
     // @Description: Extra 6th compass's device id.  Automatically detected, do not set manually
     // @ReadOnly: True
     // @User: Advanced
     AP_GROUPINFO("DEV_ID6", 46, Compass, extra_dev_id[2], 0),
+#endif // COMPASS_MAX_UNREG_DEV
 
+#if COMPASS_MAX_UNREG_DEV > 3
     // @Param: DEV_ID7
     // @DisplayName: Compass7 device id
     // @Description: Extra 7th compass's device id.  Automatically detected, do not set manually
     // @ReadOnly: True
     // @User: Advanced
     AP_GROUPINFO("DEV_ID7", 47, Compass, extra_dev_id[3], 0),
+#endif // COMPASS_MAX_UNREG_DEV
 
-
+#if COMPASS_MAX_UNREG_DEV > 4
     // @Param: DEV_ID8
     // @DisplayName: Compass8 device id
     // @Description: Extra 8th compass's device id.  Automatically detected, do not set manually
     // @ReadOnly: True
     // @User: Advanced
     AP_GROUPINFO("DEV_ID8", 48, Compass, extra_dev_id[4], 0),
+#endif // COMPASS_MAX_UNREG_DEV
 
     AP_GROUPEND
 };
@@ -596,10 +608,44 @@ void Compass::init()
         return;
     }
 
+    // Load priority list from storage, the changes to priority list 
+    // by user only take effect post reboot, after this
+    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        if (_priority_did_stored_list[i] != 0) {
+            _priority_did_list[i] = _priority_did_stored_list[i];
+        } else {
+            // Maintain a list without gaps
+            for (uint8_t j=i+1; j<COMPASS_MAX_INSTANCES; j++) {
+                int32_t temp;
+                if (_priority_did_stored_list[j] == 0) {
+                    continue;
+                }
+                temp = _priority_did_stored_list[j];
+                _priority_did_stored_list[j].set_and_save_ifchanged(0);
+                _priority_did_list[i] = temp;
+                _priority_did_stored_list[i].set_and_save_ifchanged(temp);
+                break;
+            }
+        }
+    }
+
+    // cache expected dev ids for use during runtime detection
+    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        _state[i].expected_dev_id = _state[i].dev_id;
+    }
+
+    // set the dev_id to 0 for undetected compasses. extra_dev_id is just an
+    // interface for users to see unreg compasses, we actually never store it
+    // in storage.
+    for (uint8_t i=_unreg_compass_count; i<COMPASS_MAX_UNREG_DEV; i++) {
+        extra_dev_id[i].set(0);
+    }
+
     if (_compass_count == 0) {
         // detect available backends. Only called once
         _detect_backends();
     }
+
     if (_compass_count != 0) {
         // get initial health status
         hal.scheduler->delay(100);
@@ -610,21 +656,10 @@ void Compass::init()
     // set_and_save() as the user may have temporarily removed the
     // compass, and we don't want to force a re-cal if they plug it
     // back in again
-    for (uint8_t i=_compass_count; i<COMPASS_MAX_INSTANCES; i++) {
-        _state[i].dev_id.set(0);
-    }
-
-    // check that we are actually working before passing the compass
-    // through to ARHS to use.
-    if (!read()) {
-#ifndef HAL_BUILD_AP_PERIPH
-        _enabled = false;
-        hal.console->printf("Compass initialisation failed\n");
-#endif
-#ifndef HAL_NO_LOGGING
-        AP::logger().Write_Error(LogErrorSubsystem::COMPASS, LogErrorCode::FAILED_TO_INITIALISE);
-#endif
-        return;
+    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        if (!_state[i].registered) {
+            _state[i].dev_id.set(0);
+        }
     }
 
 #ifndef HAL_BUILD_AP_PERIPH
@@ -632,14 +667,99 @@ void Compass::init()
 #endif
 }
 
+// Update Priority List for Mags, by default, we just
+// load them as they come up the first time
+uint8_t Compass::_update_priority_list(int32_t dev_id)
+{
+    // Check if already in priority list
+    for(uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        if (_priority_did_list[i] == dev_id) {
+            if (_compass_count <= i) {
+                _compass_count = i+1;
+            }
+            return i;
+        }
+    }
+
+    // We are not in priority list, let's add at first empty
+    for(uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        if (_priority_did_stored_list[i] == 0) {
+            _priority_did_stored_list[i].set_and_save(dev_id);
+            _priority_did_list[i] = dev_id;
+            if (_compass_count <= i) {
+                _compass_count = i+1;
+            }
+            return i;
+        }
+    }
+    return COMPASS_MAX_INSTANCES;
+}
+
 //  Register a new compass instance
 //
-uint8_t Compass::register_compass(void)
+uint8_t Compass::register_compass(int32_t dev_id)
 {
-    if (_compass_count == COMPASS_MAX_INSTANCES) {
+    uint8_t priority;
+
+    // Check if we already have this dev_id registered
+    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        priority = _update_priority_list(dev_id);
+        if (_state[i].expected_dev_id == dev_id && priority < COMPASS_MAX_INSTANCES) {
+            _state[i].registered = true;
+            _state[i].priority = priority;
+            return i;
+        }
+    }
+
+    // This is an unregistered compass, check if any free slot is available
+    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        priority = _update_priority_list(dev_id);
+        if (_state[i].dev_id == 0 && priority < COMPASS_MAX_INSTANCES) {
+            _state[i].registered = true;
+            _state[i].priority = priority;
+            return i;
+        }
+    }
+
+    // This might be a replacement compass module, find any unregistered compass
+    // instance and replace that
+    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        priority = _update_priority_list(dev_id);
+        if (!_state[i].registered && priority < COMPASS_MAX_INSTANCES) {
+            _state[i].registered = true;
+            _state[i].priority = priority;
+            return i;
+        }
+    }
+
+    // Set extra dev id
+    if (_unreg_compass_count >= COMPASS_MAX_UNREG_DEV) {
         AP_HAL::panic("Too many compass instances");
     }
-    return _compass_count++;
+
+    for (uint8_t i=0; i<COMPASS_MAX_UNREG_DEV; i++) {
+        if (extra_dev_id[i] == dev_id) {
+            if (i >= _unreg_compass_count) {
+                _unreg_compass_count = i+1;
+            }
+            return i+COMPASS_MAX_INSTANCES;
+        } else if (extra_dev_id[i] == 0) {
+            extra_dev_id[_unreg_compass_count++].set(dev_id);
+            return i+COMPASS_MAX_INSTANCES;
+        }
+    }
+
+    return COMPASS_MAX_INSTANCES;
+}
+
+uint8_t Compass::_get_state_id(uint8_t priority) const
+{
+    for(uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        if (_priority_did_list[priority] == _state[i].expected_dev_id) {
+            return i;
+        }
+    }
+    return COMPASS_MAX_INSTANCES;
 }
 
 bool Compass::_add_backend(AP_Compass_Backend *backend)
@@ -649,7 +769,7 @@ bool Compass::_add_backend(AP_Compass_Backend *backend)
     }
 
     if (_backend_count == COMPASS_MAX_BACKEND) {
-        AP_HAL::panic("Too many compass backends");
+        return false;
     }
 
     _backends[_backend_count++] = backend;
@@ -671,7 +791,10 @@ bool Compass::_driver_enabled(enum DriverType driver_type)
  */
 bool Compass::_have_i2c_driver(uint8_t bus, uint8_t address) const
 {
-    for (uint8_t i=0; i<_compass_count; i++) {
+    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        if (!_state[i].registered) {
+            continue;
+        }
         if (AP_HAL::Device::make_bus_id(AP_HAL::Device::BUS_TYPE_I2C, bus, address, 0) ==
             AP_HAL::Device::change_bus_id(uint32_t(_state[i].dev_id.get()), 0)) {
             // we are already using this device
@@ -687,8 +810,7 @@ bool Compass::_have_i2c_driver(uint8_t bus, uint8_t address) const
  */
 #define ADD_BACKEND(driver_type, backend)   \
     do { if (_driver_enabled(driver_type)) { _add_backend(backend); } \
-       if (_backend_count == COMPASS_MAX_BACKEND || \
-           _compass_count == COMPASS_MAX_INSTANCES) { \
+       if (_unreg_compass_count == COMPASS_MAX_UNREG_DEV) { \
           return; \
         } \
     } while (0)
@@ -851,8 +973,7 @@ void Compass::_detect_backends(void)
 #ifdef HAL_PROBE_EXTERNAL_I2C_COMPASSES
     // allow boards to ask for external probing of all i2c compass types in hwdef.dat
     _probe_external_i2c_compasses();
-    if (_backend_count == COMPASS_MAX_BACKEND ||
-        _compass_count == COMPASS_MAX_INSTANCES) {
+    if (_unreg_compass_count == COMPASS_MAX_UNREG_DEV) {
         return;
     }
 #endif
@@ -876,8 +997,7 @@ void Compass::_detect_backends(void)
     case AP_BoardConfig::PX4_BOARD_PIXHAWK_PRO:
     case AP_BoardConfig::PX4_BOARD_AEROFC:
         _probe_external_i2c_compasses();
-        if (_backend_count == COMPASS_MAX_BACKEND ||
-            _compass_count == COMPASS_MAX_INSTANCES) {
+        if (_unreg_compass_count == COMPASS_MAX_UNREG_DEV) {
             return;
         }
         break;
@@ -984,8 +1104,16 @@ void Compass::_detect_backends(void)
 #endif
 
 #if HAL_WITH_UAVCAN
-    for (uint8_t i = 0; i < COMPASS_MAX_BACKEND; i++) {
-        ADD_BACKEND(DRIVER_UAVCAN, AP_Compass_UAVCAN::probe());
+    if (_driver_enabled(DRIVER_UAVCAN)) {
+        for (uint8_t i=0; i<COMPASS_MAX_BACKEND; i++) {
+            AP_Compass_Backend* _uavcan_backend = AP_Compass_UAVCAN::probe(i);
+            if (_uavcan_backend) {
+                _add_backend(_uavcan_backend);
+            }
+            if (_unreg_compass_count == COMPASS_MAX_UNREG_DEV) { 
+                return;
+            }
+        }
     }
 #endif
 
@@ -993,6 +1121,25 @@ void Compass::_detect_backends(void)
         _compass_count == 0) {
         hal.console->printf("No Compass backends available\n");
     }
+}
+
+// Look for devices beyond initialisation
+void
+Compass::_detect_runtime(void)
+{
+#if HAL_WITH_UAVCAN
+    if (_driver_enabled(DRIVER_UAVCAN)) {
+        for (uint8_t i=0; i<COMPASS_MAX_BACKEND; i++) {
+            AP_Compass_Backend* _uavcan_backend = AP_Compass_UAVCAN::probe(i);
+            if (_uavcan_backend) {
+                _add_backend(_uavcan_backend);
+            }
+            if (_unreg_compass_count == COMPASS_MAX_UNREG_DEV) { 
+                return;
+            }
+        }
+    }
+#endif
 }
 
 bool
@@ -1003,6 +1150,9 @@ Compass::read(void)
         try_set_initial_location();
     }
 #endif
+
+    _detect_runtime();
+
     for (uint8_t i=0; i< _backend_count; i++) {
         // call read on each of the backend. This call updates field[i]
         _backends[i]->read();
@@ -1045,8 +1195,9 @@ void
 Compass::set_offsets(uint8_t i, const Vector3f &offsets)
 {
     // sanity check compass instance provided
-    if (i < COMPASS_MAX_INSTANCES) {
-        _state[i].offset.set(offsets);
+    uint8_t id = _get_state_id(i);
+    if (id < COMPASS_MAX_INSTANCES){
+        _state[id].offset.set(offsets);
     }
 }
 
@@ -1054,8 +1205,9 @@ void
 Compass::set_and_save_offsets(uint8_t i, const Vector3f &offsets)
 {
     // sanity check compass instance provided
-    if (i < COMPASS_MAX_INSTANCES) {
-        _state[i].offset.set(offsets);
+    uint8_t id = _get_state_id(i);
+    if (id < COMPASS_MAX_INSTANCES){
+        _state[id].offset.set(offsets);
         save_offsets(i);
     }
 }
@@ -1064,8 +1216,9 @@ void
 Compass::set_and_save_diagonals(uint8_t i, const Vector3f &diagonals)
 {
     // sanity check compass instance provided
-    if (i < COMPASS_MAX_INSTANCES) {
-        _state[i].diagonals.set_and_save(diagonals);
+    uint8_t id = _get_state_id(i);
+    if (id < COMPASS_MAX_INSTANCES){
+        _state[id].diagonals.set_and_save(diagonals);
     }
 }
 
@@ -1073,24 +1226,38 @@ void
 Compass::set_and_save_offdiagonals(uint8_t i, const Vector3f &offdiagonals)
 {
     // sanity check compass instance provided
-    if (i < COMPASS_MAX_INSTANCES) {
-        _state[i].offdiagonals.set_and_save(offdiagonals);
+    uint8_t id = _get_state_id(i);
+    if (id < COMPASS_MAX_INSTANCES){
+        _state[id].offdiagonals.set_and_save(offdiagonals);
     }
 }
 
 void
 Compass::set_and_save_scale_factor(uint8_t i, float scale_factor)
 {
+    uint8_t id = _get_state_id(i);
     if (i < COMPASS_MAX_INSTANCES) {
-        _state[i].scale_factor.set_and_save(scale_factor);
+        _state[id].scale_factor.set_and_save(scale_factor);
     }
 }
 
 void
 Compass::save_offsets(uint8_t i)
 {
-    _state[i].offset.save();  // save offsets
-    _state[i].dev_id.set_and_save(_state[i].detected_dev_id);
+    uint8_t id = _get_state_id(i);
+    if (id < COMPASS_MAX_INSTANCES){
+        _state[id].offset.save();  // save offsets
+        _state[id].dev_id.set_and_save(_state[id].detected_dev_id);
+    }
+}
+
+void
+Compass::set_and_save_orientation(uint8_t i, Rotation orientation)
+{
+    uint8_t id = _get_state_id(i);
+    if (id < COMPASS_MAX_INSTANCES){
+        _state[id].orientation.set_and_save_ifchanged(orientation);
+    }
 }
 
 void
@@ -1104,15 +1271,22 @@ Compass::save_offsets(void)
 void
 Compass::set_motor_compensation(uint8_t i, const Vector3f &motor_comp_factor)
 {
-    _state[i].motor_compensation.set(motor_comp_factor);
+    uint8_t id = _get_state_id(i);
+    if (id < COMPASS_MAX_INSTANCES){
+        _state[id].motor_compensation.set(motor_comp_factor);
+    }
 }
 
 void
 Compass::save_motor_compensation()
 {
+    uint8_t id;
     _motor_comp_type.save();
     for (uint8_t k=0; k<COMPASS_MAX_INSTANCES; k++) {
-        _state[k].motor_compensation.save();
+        id = _get_state_id(k);
+        if (id<COMPASS_MAX_INSTANCES){
+            _state[id].motor_compensation.save();
+        }
     }
 }
 
@@ -1144,8 +1318,7 @@ void Compass::try_set_initial_location()
 bool
 Compass::use_for_yaw(void) const
 {
-    uint8_t prim = get_primary();
-    return healthy(prim) && use_for_yaw(prim);
+    return healthy(0) && use_for_yaw(0);
 }
 
 /// return true if the specified compass can be used for yaw calculations
@@ -1155,7 +1328,13 @@ Compass::use_for_yaw(uint8_t i) const
     // when we are doing in-flight compass learning the state
     // estimator must not use the compass. The learning code turns off
     // inflight learning when it has converged
-    return _state[i].use_for_yaw && _learn.get() != LEARN_INFLIGHT;
+    return _use_for_yaw[i] && _learn.get() != LEARN_INFLIGHT;
+}
+
+void
+Compass::set_use_for_yaw(uint8_t i, bool use)
+{
+    _use_for_yaw[i].set(use);
 }
 
 void
@@ -1223,27 +1402,23 @@ bool Compass::configured(uint8_t i)
         return false;
     }
 
+    uint8_t id = _get_state_id(i);
     // exit immediately if dev_id hasn't been detected
-    if (_state[i].detected_dev_id == 0) {
+    if (_state[id].detected_dev_id == 0) {
         return false;
     }
 
     // back up cached value of dev_id
-    int32_t dev_id_cache_value = _state[i].dev_id;
+    int32_t dev_id_cache_value = _state[id].dev_id;
 
     // load dev_id from eeprom
-    _state[i].dev_id.load();
+    _state[id].dev_id.load();
 
     // if dev_id loaded from eeprom is different from detected dev id or dev_id loaded from eeprom is different from cached dev_id, compass is unconfigured
-    if (_state[i].dev_id != _state[i].detected_dev_id || _state[i].dev_id != dev_id_cache_value) {
+    if (_state[id].dev_id != _state[id].detected_dev_id || _state[id].dev_id != dev_id_cache_value) {
         // restore cached value
-        _state[i].dev_id = dev_id_cache_value;
+        _state[id].dev_id = dev_id_cache_value;
         // return failure
-        return false;
-    }
-
-    // if expected_dev_id is configured and the detected dev_id is different, return false
-    if (_state[i].expected_dev_id != -1 && _state[i].expected_dev_id != _state[i].dev_id) {
         return false;
     }
 
@@ -1251,11 +1426,28 @@ bool Compass::configured(uint8_t i)
     return true;
 }
 
-bool Compass::configured(void)
+bool Compass::configured(char *failure_msg, uint8_t failure_msg_len)
 {
+    // Check if any of the registered devs are not registered
+    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        if (_priority_did_list[i] != 0 && use_for_yaw(i)) {
+            if (!_get_state(i).registered) {
+                snprintf(failure_msg, failure_msg_len, "Compass %d not Found", i);
+                return false;
+            }
+            if (_priority_did_list[i] != _priority_did_stored_list[i]) {
+                snprintf(failure_msg, failure_msg_len, "Compass order change requires reboot");
+                return false;
+            }
+        }
+    }
+
     bool all_configured = true;
     for(uint8_t i=0; i<get_count(); i++) {
         all_configured = all_configured && (!use_for_yaw(i) || configured(i));
+    }
+    if (!all_configured) {
+        snprintf(failure_msg, failure_msg_len, "Compass not calibrated");
     }
     return all_configured;
 }

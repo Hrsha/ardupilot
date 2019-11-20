@@ -66,7 +66,7 @@ bool Compass::_start_calibration(uint8_t i, bool retry, float delay)
     if (!is_calibrating()) {
         AP_Notify::events.initiated_compass_cal = 1;
     }
-    if (i == get_primary() && _state[i].external != 0) {
+    if (i == 0 && _get_state(i).external != 0) {
         _calibrator[i].set_tolerance(_calibration_threshold);
     } else {
         // internal compasses or secondary compasses get twice the
@@ -75,9 +75,9 @@ bool Compass::_start_calibration(uint8_t i, bool retry, float delay)
         _calibrator[i].set_tolerance(_calibration_threshold*2);
     }
     if (_rotate_auto) {
-        enum Rotation r = _state[i].external?(enum Rotation)_state[i].orientation.get():ROTATION_NONE;
+        enum Rotation r = _get_state(i).external?(enum Rotation)_get_state(i).orientation.get():ROTATION_NONE;
         if (r != ROTATION_CUSTOM) {
-            _calibrator[i].set_orientation(r, _state[i].external, _rotate_auto>=2);
+            _calibrator[i].set_orientation(r, _get_state(i).external, _rotate_auto>=2);
         }
     }
     _cal_saved[i] = false;
@@ -162,8 +162,8 @@ bool Compass::_accept_calibration(uint8_t i)
         set_and_save_offdiagonals(i,offdiag);
         set_and_save_scale_factor(i,scale_factor);
 
-        if (_state[i].external && _rotate_auto >= 2) {
-            _state[i].orientation.set_and_save_ifchanged(cal.get_orientation());
+        if (_get_state(i).external && _rotate_auto >= 2) {
+            set_and_save_orientation(i, cal.get_orientation());
         }
 
         if (!is_calibrating()) {

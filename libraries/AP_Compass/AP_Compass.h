@@ -47,6 +47,7 @@
  */
 #define COMPASS_MAX_INSTANCES 3
 #define COMPASS_MAX_BACKEND   3
+#define COMPASS_MAX_UNREG_DEV 5
 
 class CompassLearn;
 
@@ -87,7 +88,7 @@ public:
     /// @returns heading in radians
     ///
     float calculate_heading(const Matrix3f &dcm_matrix) const {
-        return calculate_heading(dcm_matrix, get_primary());
+        return calculate_heading(dcm_matrix, 0);
     }
     float calculate_heading(const Matrix3f &dcm_matrix, uint8_t i) const;
 
@@ -107,6 +108,7 @@ public:
     void set_and_save_diagonals(uint8_t i, const Vector3f &diagonals);
     void set_and_save_offdiagonals(uint8_t i, const Vector3f &diagonals);
     void set_and_save_scale_factor(uint8_t i, float scale_factor);
+    void set_and_save_orientation(uint8_t i, Rotation orientation);
 
     /// Saves the current offset x/y/z values for one or all compasses
     ///
@@ -122,8 +124,8 @@ public:
     uint8_t get_count(void) const { return _compass_count; }
 
     /// Return the current field as a Vector3f in milligauss
-    const Vector3f &get_field(uint8_t i) const { return _state[i].field; }
-    const Vector3f &get_field(void) const { return get_field(get_primary()); }
+    const Vector3f &get_field(uint8_t i) const { return _get_state(i).field; }
+    const Vector3f &get_field(void) const { return get_field(0); }
 
     /// Return true if we have set a scale factor for a compass
     bool have_scale_factor(uint8_t i) const;
@@ -166,22 +168,22 @@ public:
     bool consistent() const;
 
     /// Return the health of a compass
-    bool healthy(uint8_t i) const { return _state[i].healthy; }
-    bool healthy(void) const { return healthy(get_primary()); }
+    bool healthy(uint8_t i) const { return _get_state(i).healthy; }
+    bool healthy(void) const { return healthy(0); }
     uint8_t get_healthy_mask() const;
 
     /// Returns the current offset values
     ///
     /// @returns                    The current compass offsets in milligauss.
     ///
-    const Vector3f &get_offsets(uint8_t i) const { return _state[i].offset; }
-    const Vector3f &get_offsets(void) const { return get_offsets(get_primary()); }
+    const Vector3f &get_offsets(uint8_t i) const { return _get_state(i).offset; }
+    const Vector3f &get_offsets(void) const { return get_offsets(0); }
 
-    const Vector3f &get_diagonals(uint8_t i) const { return _state[i].diagonals; }
-    const Vector3f &get_diagonals(void) const { return get_diagonals(get_primary()); }
+    const Vector3f &get_diagonals(uint8_t i) const { return _get_state(i).diagonals; }
+    const Vector3f &get_diagonals(void) const { return get_diagonals(0); }
 
-    const Vector3f &get_offdiagonals(uint8_t i) const { return _state[i].offdiagonals; }
-    const Vector3f &get_offdiagonals(void) const { return get_offdiagonals(get_primary()); }
+    const Vector3f &get_offdiagonals(uint8_t i) const { return _get_state(i).offdiagonals; }
+    const Vector3f &get_offdiagonals(void) const { return get_offdiagonals(0); }
 
     // learn offsets accessor
     bool learn_offsets_enabled() const { return _learn == LEARN_INFLIGHT; }
@@ -190,9 +192,7 @@ public:
     bool use_for_yaw(uint8_t i) const;
     bool use_for_yaw(void) const;
 
-    void set_use_for_yaw(uint8_t i, bool use) {
-        _state[i].use_for_yaw.set(use);
-    }
+    void set_use_for_yaw(uint8_t i, bool use);
 
     /// Sets the local magnetic field declination.
     ///
@@ -227,8 +227,8 @@ public:
     void set_motor_compensation(uint8_t i, const Vector3f &motor_comp_factor);
 
     /// get motor compensation factors as a vector
-    const Vector3f& get_motor_compensation(uint8_t i) const { return _state[i].motor_compensation; }
-    const Vector3f& get_motor_compensation(void) const { return get_motor_compensation(get_primary()); }
+    const Vector3f& get_motor_compensation(uint8_t i) const { return _get_state(i).motor_compensation; }
+    const Vector3f& get_motor_compensation(void) const { return get_motor_compensation(0); }
 
     /// Saves the current motor compensation x/y/z values.
     ///
@@ -240,8 +240,8 @@ public:
     ///
     /// @returns                    The current compass offsets in milligauss.
     ///
-    const Vector3f &get_motor_offsets(uint8_t i) const { return _state[i].motor_offset; }
-    const Vector3f &get_motor_offsets(void) const { return get_motor_offsets(get_primary()); }
+    const Vector3f &get_motor_offsets(uint8_t i) const { return _get_state(i).motor_offset; }
+    const Vector3f &get_motor_offsets(void) const { return get_motor_offsets(0); }
 
     /// Set the throttle as a percentage from 0.0 to 1.0
     /// @param thr_pct              throttle expressed as a percentage from 0 to 1.0
@@ -263,13 +263,7 @@ public:
     /// @returns                    True if compass has been configured
     ///
     bool configured(uint8_t i);
-    bool configured(void);
-
-    /// Returns the instance of the primary compass
-    ///
-    /// @returns                    the instance number of the primary compass
-    ///
-    uint8_t get_primary(void) const { return _primary; }
+    bool configured(char *failure_msg, uint8_t failure_msg_len);
 
     // HIL methods
     void        setHIL(uint8_t instance, float roll, float pitch, float yaw);
@@ -281,11 +275,11 @@ public:
     void        set_hil_mode(void) { _hil_mode = true; }
 
     // return last update time in microseconds
-    uint32_t last_update_usec(void) const { return _state[get_primary()].last_update_usec; }
-    uint32_t last_update_usec(uint8_t i) const { return _state[i].last_update_usec; }
+    uint32_t last_update_usec(void) const { return last_update_usec(0); }
+    uint32_t last_update_usec(uint8_t i) const { return _get_state(i).last_update_usec; }
 
-    uint32_t last_update_ms(void) const { return _state[get_primary()].last_update_ms; }
-    uint32_t last_update_ms(uint8_t i) const { return _state[i].last_update_ms; }
+    uint32_t last_update_ms(void) const { return last_update_ms(0); }
+    uint32_t last_update_ms(uint8_t i) const { return _get_state(i).last_update_ms; }
 
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -335,8 +329,10 @@ private:
     static Compass *_singleton;
     /// Register a new compas driver, allocating an instance number
     ///
-    /// @return number of compass instances
-    uint8_t register_compass(void);
+    /// @param  dev_id                   Dev ID of compass to register against
+    ///
+    /// @return instance number saved against the dev id or first available empty instance number
+    uint8_t register_compass(int32_t dev_id);
 
     // load backend drivers
     bool _add_backend(AP_Compass_Backend *backend);
@@ -405,15 +401,15 @@ private:
     // number of registered compasses.
     uint8_t     _compass_count;
 
+    // number of unregistered compasses.
+    uint8_t     _unreg_compass_count;
+
     // settable parameters
     AP_Int8 _learn;
 
     // board orientation from AHRS
     enum Rotation _board_orientation = ROTATION_NONE;
     Matrix3f* _custom_rotation;
-
-    // primary instance
-    AP_Int8     _primary;
 
     // declination in radians
     AP_Float    _declination;
@@ -443,6 +439,8 @@ private:
     struct mag_state {
         AP_Int8     external;
         bool        healthy;
+        bool        registered;
+        uint8_t     priority;
         AP_Int8     orientation;
         AP_Vector3f offset;
         AP_Vector3f diagonals;
@@ -453,10 +451,8 @@ private:
         // saved to eeprom when offsets are saved allowing ram &
         // eeprom values to be compared as consistency check
         AP_Int32    dev_id;
-        AP_Int32    expected_dev_id;
         int32_t detected_dev_id;
-
-        AP_Int8     use_for_yaw;
+        int32_t expected_dev_id;
 
         uint8_t     mag_history_index;
         Vector3i    mag_history[_mag_history_size];
@@ -480,8 +476,17 @@ private:
         // accumulated samples, protected by _sem, used by AP_Compass_Backend
         Vector3f accum;
         uint32_t accum_count;
-    } _state[COMPASS_MAX_INSTANCES];
+    } _state[COMPASS_MAX_INSTANCES+1];
 
+    uint8_t _get_state_id(uint8_t priority) const;
+    const struct mag_state& _get_state(uint8_t priority) const { return _state[_get_state_id(priority)]; }
+    uint8_t _get_priority(uint8_t state_id) { return _state[state_id].priority; }
+    void _detect_runtime(void);
+
+    uint8_t _update_priority_list(int32_t dev_id);
+    AP_Int8  _use_for_yaw[COMPASS_MAX_INSTANCES];
+    AP_Int32 _priority_did_stored_list[COMPASS_MAX_INSTANCES];
+    int32_t _priority_did_list[COMPASS_MAX_INSTANCES];
     AP_Int16 _offset_max;
 
     // bitmask of options
@@ -506,7 +511,10 @@ private:
 
     // mask of driver types to not load. Bit positions match DEVTYPE_ in backend
     AP_Int32 _driver_type_mask;
-    
+
+    // Put extra dev ids detected
+    AP_Int32 extra_dev_id[COMPASS_MAX_UNREG_DEV];
+
     AP_Int8 _filter_range;
 
     CompassLearn *learn;
