@@ -476,13 +476,26 @@ private:
         // accumulated samples, protected by _sem, used by AP_Compass_Backend
         Vector3f accum;
         uint32_t accum_count;
+        // We only copy persistent params
+        void operator=(mag_state& state)
+        {
+            external.set_and_save_ifchanged(state.external);
+            orientation.set_and_save_ifchanged(state.orientation);
+            offset.set_and_save(state.offset);
+            diagonals.set_and_save(state.diagonals);
+            offdiagonals.set_and_save(state.offdiagonals);
+            scale_factor.set_and_save(state.scale_factor);
+            dev_id.set_and_save_ifchanged(state.dev_id);
+            motor_compensation.set_and_save(state.motor_compensation);
+            expected_dev_id = state.expected_dev_id;
+        }
     } _state[COMPASS_MAX_INSTANCES+1];
 
     uint8_t _get_state_id(uint8_t priority) const;
     const struct mag_state& _get_state(uint8_t priority) const { return _state[_get_state_id(priority)]; }
     uint8_t _get_priority(uint8_t state_id) { return _state[state_id].priority; }
     void _detect_runtime(void);
-
+    void _reorder_compass_params();
     uint8_t _update_priority_list(int32_t dev_id);
     AP_Int8  _use_for_yaw[COMPASS_MAX_INSTANCES];
     AP_Int32 _priority_did_stored_list[COMPASS_MAX_INSTANCES];

@@ -657,6 +657,8 @@ void Compass::init()
         extra_dev_id[i].set(0);
     }
 
+    _reorder_compass_params();
+
     if (_compass_count == 0) {
         // detect available backends. Only called once
         _detect_backends();
@@ -709,6 +711,23 @@ uint8_t Compass::_update_priority_list(int32_t dev_id)
         }
     }
     return COMPASS_MAX_INSTANCES;
+}
+
+// This method reorganises devid list to match
+// priority list, only call before detection at boot
+void Compass::_reorder_compass_params()
+{
+    mag_state swap_state;
+    uint8_t curr_state_id;
+    for(uint8_t i = 0; i<COMPASS_MAX_INSTANCES; i++) {
+        curr_state_id = _get_state_id(i);
+        if (curr_state_id != COMPASS_MAX_INSTANCES && curr_state_id != i) {
+            //let's swap
+            swap_state = _state[curr_state_id];
+            _state[curr_state_id] = _state[i];
+            _state[i] = swap_state;
+        }
+    }
 }
 
 //  Register a new compass instance
