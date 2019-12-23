@@ -98,7 +98,8 @@ bool AP_Compass_UAVCAN::init()
     uint32_t devid = AP_HAL::Device::make_bus_id(AP_HAL::Device::BUS_TYPE_UAVCAN,
                                                  _ap_uavcan->get_driver_index(),
                                                  _node_id,
-                                                 _sensor_id); // we use sensor_id devtype
+                                                 _sensor_id + 1); // we use sensor_id as devtype
+    // Adding 1 is necessary to allow backward compatibilty, where this field was set as 1 by default
     if ((_instance = register_compass(devid)) >= COMPASS_MAX_INSTANCES) {
         return false;
     }
