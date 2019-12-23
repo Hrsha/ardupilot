@@ -29,6 +29,7 @@
 #include "Compass_learn.h"
 #include <stdio.h>
 
+
 extern const AP_HAL::HAL& hal;
 
 #ifndef COMPASS_LEARN_DEFAULT
@@ -606,6 +607,21 @@ void Compass::init()
 {
     if (!AP::compass().enabled()) {
         return;
+    }
+
+    // Look if there was a primary compass setup in previous version
+    // if so and the the primary compass is not set in current setup
+    // make the devid as primary.
+    if (_priority_did_stored_list[0] == 0) {
+        uint16_t k_param_compass;
+        if (AP_Param::find_top_level_key_by_pointer(this, k_param_compass)) {
+            const AP_Param::ConversionInfo primary_compass_old_param = {k_param_compass, 12, AP_PARAM_INT8, ""};
+            AP_Int8 value;
+            bool primary_param_exists = AP_Param::find_old_parameter(&primary_compass_old_param, &value);
+            if ((value!=0) && (value<COMPASS_MAX_INSTANCES) && primary_param_exists) {
+                _priority_did_stored_list[0].set_and_save_ifchanged(_state[value].dev_id);
+            }
+        }
     }
 
     // Load priority list from storage, the changes to priority list 
